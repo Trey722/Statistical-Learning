@@ -1,0 +1,225 @@
+---
+title: "Linear Regression"
+author: "Trey Davidson"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(reticulate)
+library(Rcpp)
+
+
+```
+
+# Simple Linear Regression Model
+
+## $y=β_{1}+β_{2}x+e$
+
+Assumes 1.) $β_{1}$ and $β_{2}$ are random variables
+2.) e is normally distributed around 0
+
+```{python}
+import numpy as np
+
+def lin_regress_one(x, y):
+    # Convert inputs to numpy arrays
+    x = np.array(x)
+    y = np.array(y)
+    
+   
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    
+   
+    numerator = np.sum((x - x_mean) * (y - y_mean))
+    denominator = np.sum((x - x_mean) ** 2)
+    beta_1 = numerator / denominator
+    
+   
+    beta_0 = y_mean - beta_1 * x_mean
+    
+    return [beta_0, beta_1]
+```
+
+```{r chunck 2}
+
+set.seed(10)
+n = 50
+l = 1
+h = 100
+beta_1 = 2
+beta_2 = 5
+
+t <- (h - l) / n
+
+x <- seq(l, h, by = t)
+y <- beta_1 + x * beta_2 + rnorm(length(x), 0, 0)
+
+plot(x, y, col = "lightgray", pch = 16, main = "Plot with Light Gray Dots",
+     xlab = "X axis", ylab = "Y axis")
+
+# Use reticulate to call the Python function
+parameters <- py$lin_regress_one(x, y)
+
+parameters <- as.numeric(parameters)
+
+
+# Access the individual elements from the result
+intercept <- parameters[1]
+slope <- parameters[2]
+
+y_hat <- intercept + slope * x
+
+lines(x, y_hat, col = "blue", lwd = 2)
+
+```
+
+You can see our model perfeclty matches the sample data. This happens because our real data has no variance. Meaning a perfect model can be found. Now if we raise the variance in our model the following will happen.
+
+```{r }
+
+set.seed(10)
+n = 40
+l = 1
+h = 100
+beta_1 = 2
+beta_2 = 5
+
+t <- (h - l) / n
+
+x <- seq(l, h, by = t)
+y <- beta_1 + beta_2 * x + rnorm(length(x), 0, 80)
+
+plot(x, y, col = "lightgray", pch = 16, main = "Plot with Light Gray Dots",
+     xlab = "X axis", ylab = "Y axis")
+
+# Use reticulate to call the Python function
+parameters <- py$lin_regress_one(x, y)
+
+parameters <- as.numeric(parameters)
+
+
+# Access the individual elements from the result
+intercept <- parameters[1]
+slope <- parameters[2]
+
+y_hat <- intercept + slope * x
+
+lines(x, y_hat, col = "blue", lwd = 2)
+
+lines(x, beta_1 + x * beta_2, col = "red", lwd = 2)
+
+
+
+
+```
+
+Since we added variance to the model, the model we predict deviates from the model that is used to generate this data.This is because of + e thats in the real model vs our predictive model. We can calculate e using the following. 
+
+$y=β_{1}+β_{2}x+e$
+
+$\hat{y}=β_{1}+β_{2}x$
+
+$y=β_{1}+β_{2}x$
+
+$y - \hat{y} = β_{1}+β_{2}x+e - β_{1}+β_{2}x$
+
+$y - \hat{y} = e$
+
+We call e a residual. According to one of our assumption, e is normally distributed at 0. We can see if this is true by using a histogram. 
+
+```{r }
+e <- y - y_hat
+
+hist(e)
+
+```
+As you can see e follows close to a normal dist. If we take the variance of e we can calculate how good of a fit our model is. The closer to 0 it is the better of a fit it is.
+
+```{r }
+sourceCpp("LinearRegressionSupport.cpp")
+
+ var_residuals <- variance_residuals(e, length(x), 2)
+ 
+ std_dev <- sqrt(var_residuals)
+ 
+ 
+  var_residuals
+  
+  std_dev
+  
+
+```
+
+
+Since we know that e is close to norm dist and standard deviation = 73.10213, we know that aprox 68% of the data is withen 73.10213 of our predicted value. 
+
+Our standered deviation makes sense because our sample size is small at 40 and we used rnorm to generate our data and used a standard deviation of 80 for it. If we run the same code and increase sample size to 1 million, then we should expect our standard deviation of e to be 80. 
+
+
+
+```{r }
+
+set.seed(10)
+n = 1000000
+l = 1
+h = 100
+beta_1 = 2
+beta_2 = 5
+
+t <- (h - l) / n
+
+x <- seq(l, h, by = t)
+y <- beta_1 + beta_2 * x + rnorm(length(x), 0, 80)
+
+plot(x, y, col = "lightgray", pch = 16, main = "Plot with Light Gray Dots",
+     xlab = "X axis", ylab = "Y axis")
+
+# Use reticulate to call the Python function
+parameters <- py$lin_regress_one(x, y)
+
+parameters <- as.numeric(parameters)
+
+
+# Access the individual elements from the result
+intercept <- parameters[1]
+slope <- parameters[2]
+
+y_hat <- intercept + slope * x
+
+
+lines(x, beta_1 + x * beta_2, col = "red", lwd = 2) 
+
+
+lines(x, y_hat, col = "blue", lwd = 2)
+
+
+e <- y - y_hat
+
+var_residuals <- variance_residuals(e, length(x), 2)
+ 
+std_dev <- sqrt(var_residuals)
+ 
+ 
+var_residuals
+  
+std_dev
+
+
+```
+
+
+Like expected standard deviation of residuals is = to almost exactly 80. In addition, we would expect our residuals to follow exaclty the norm dist. 
+
+
+```{r "dist at n = infinity"}
+hist(e)
+```
+
+As you can see its symetrical around the mean of 0. This follows all of our assumptions.
+
+
